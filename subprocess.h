@@ -256,7 +256,7 @@ typedef size_t subprocess_size_t;
 
 typedef struct _PROCESS_INFORMATION *LPPROCESS_INFORMATION;
 typedef struct _SECURITY_ATTRIBUTES *LPSECURITY_ATTRIBUTES;
-typedef struct _STARTUPINFOA *LPSTARTUPINFOA;
+typedef struct _STARTUPINFOW *LPSTARTUPINFOW;
 typedef struct _OVERLAPPED *LPOVERLAPPED;
 
 #ifdef __clang__
@@ -346,9 +346,9 @@ __declspec(dllimport) void *__stdcall CreateFileA(const char *, unsigned long,
                                                   void *);
 __declspec(dllimport) void *__stdcall CreateEventA(LPSECURITY_ATTRIBUTES, int,
                                                    int, const char *);
-__declspec(dllimport) int __stdcall CreateProcessA(
-    const char *, char *, LPSECURITY_ATTRIBUTES, LPSECURITY_ATTRIBUTES, int,
-    unsigned long, void *, const char *, LPSTARTUPINFOA, LPPROCESS_INFORMATION);
+__declspec(dllimport) int __stdcall CreateProcessW(
+    const wchar_t *, wchar_t *, LPSECURITY_ATTRIBUTES, LPSECURITY_ATTRIBUTES, int,
+    unsigned long, void *, const wchar_t *, LPSTARTUPINFOW, LPPROCESS_INFORMATION);
 __declspec(dllimport) int __stdcall CloseHandle(void *);
 __declspec(dllimport) unsigned long __stdcall WaitForSingleObject(
     void *, unsigned long);
@@ -359,7 +359,10 @@ __declspec(dllimport) unsigned long __stdcall WaitForMultipleObjects(
     unsigned long, void *const *, int, unsigned long);
 __declspec(dllimport) int __stdcall GetOverlappedResult(void *, LPOVERLAPPED,
                                                         unsigned long *, int);
-
+__declspec(dllimport) int __stdcall MultiByteToWideChar(unsigned int,
+                                                        unsigned long,
+                                                        const char*, int,
+                                                        wchar_t*, int);
 #if defined(_DLL)
 #define SUBPROCESS_DLLIMPORT __declspec(dllimport)
 #else
@@ -720,16 +723,33 @@ int subprocess_create_ex(const char *const commandLine[], int options,
 
   commandLineCombined[len] = '\0';
 
-  if (!CreateProcessA(
+  int code_page = 65001;  // CP_UTF8
+  int size = MultiByteToWideChar(code_page, 0, commandLineCombined, -1, nullptr, 0);
+  wchar_t *cmd_w = SUBPROCESS_CAST(wchar_t *, _alloca((size + 1) * sizeof(wchar_t)));
+  cmd_w[size] = 0;
+  MultiByteToWideChar(code_page, 0, commandLineCombined, -1, cmd_w, size);
+
+  // Todo: This won't work properly cause used_environment has null terminators.
+  wchar_t *env_w;
+  if (used_environment = SUBPROCESS_NULL) {
+    size = MultiByteToWideChar(code_page, 0, used_environment, -1, nullptr, 0);
+    env_w = SUBPROCESS_CAST(wchar_t *, _alloca((size + 1) * sizeof(wchar_t)));
+    env_w[size] = 0;
+    MultiByteToWideChar(code_page, 0, used_environment, -1, env_w, size);
+  } else {
+    env_w = SUBPROCESS_NULL;
+  }
+
+  if (!CreateProcessW(
           SUBPROCESS_NULL,
-          commandLineCombined, // command line
+          cmd_w,               // command line
           SUBPROCESS_NULL,     // process security attributes
           SUBPROCESS_NULL,     // primary thread security attributes
           1,                   // handles are inherited
           flags,               // creation flags
-          used_environment,    // used environment
+          env_w,               // used environment
           SUBPROCESS_NULL,     // use parent's current directory
-          SUBPROCESS_PTR_CAST(LPSTARTUPINFOA,
+          SUBPROCESS_PTR_CAST(LPSTARTUPINFOW,
                               &startInfo), // STARTUPINFO pointer
           SUBPROCESS_PTR_CAST(LPPROCESS_INFORMATION, &processInfo))) {
     return -1;

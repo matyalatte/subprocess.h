@@ -98,7 +98,11 @@ extern "C" {
 /// @param options A bit field of subprocess_option_e's to pass.
 /// @param out_process The newly created process.
 /// @return On success zero is returned.
+#ifdef _WIN32
+subprocess_weak int subprocess_create(const wchar_t *const command_line[],
+#else
 subprocess_weak int subprocess_create(const char *const command_line[],
+#endif
                                       int options,
                                       struct subprocess_s *const out_process);
 
@@ -117,7 +121,11 @@ subprocess_weak int subprocess_create(const char *const command_line[],
 /// If `options` contains `subprocess_option_inherit_environment`, then
 /// `environment` must be NULL.
 subprocess_weak int
+#ifdef _WIN32
+subprocess_create_ex(const wchar_t *const command_line[], int options,
+#else
 subprocess_create_ex(const char *const command_line[], int options,
+#endif
                      const char *const environment[],
                      struct subprocess_s *const out_process);
 
@@ -256,7 +264,7 @@ typedef size_t subprocess_size_t;
 
 typedef struct _PROCESS_INFORMATION *LPPROCESS_INFORMATION;
 typedef struct _SECURITY_ATTRIBUTES *LPSECURITY_ATTRIBUTES;
-typedef struct _STARTUPINFOA *LPSTARTUPINFOA;
+typedef struct _STARTUPINFOW *LPSTARTUPINFOW;
 typedef struct _OVERLAPPED *LPOVERLAPPED;
 
 #ifdef __clang__
@@ -346,9 +354,9 @@ __declspec(dllimport) void *__stdcall CreateFileA(const char *, unsigned long,
                                                   void *);
 __declspec(dllimport) void *__stdcall CreateEventA(LPSECURITY_ATTRIBUTES, int,
                                                    int, const char *);
-__declspec(dllimport) int __stdcall CreateProcessA(
-    const char *, char *, LPSECURITY_ATTRIBUTES, LPSECURITY_ATTRIBUTES, int,
-    unsigned long, void *, const char *, LPSTARTUPINFOA, LPPROCESS_INFORMATION);
+__declspec(dllimport) int __stdcall CreateProcessW(
+    const wchar_t *, wchar_t *, LPSECURITY_ATTRIBUTES, LPSECURITY_ATTRIBUTES, int,
+    unsigned long, void *, const wchar_t *, LPSTARTUPINFOW, LPPROCESS_INFORMATION);
 __declspec(dllimport) int __stdcall CloseHandle(void *);
 __declspec(dllimport) unsigned long __stdcall WaitForSingleObject(
     void *, unsigned long);
@@ -359,7 +367,10 @@ __declspec(dllimport) unsigned long __stdcall WaitForMultipleObjects(
     unsigned long, void *const *, int, unsigned long);
 __declspec(dllimport) int __stdcall GetOverlappedResult(void *, LPOVERLAPPED,
                                                         unsigned long *, int);
-
+__declspec(dllimport) int __stdcall MultiByteToWideChar(unsigned int,
+                                                        unsigned long,
+                                                        const char*, int,
+                                                        wchar_t*, int);
 #if defined(_DLL)
 #define SUBPROCESS_DLLIMPORT __declspec(dllimport)
 #else
@@ -466,19 +477,19 @@ int subprocess_create_named_pipe_helper(void **rd, void **wr) {
 }
 #endif
 
-int subprocess_create(const char *const commandLine[], int options,
+#if defined(_WIN32)
+int subprocess_create(const wchar_t *const commandLine[], int options,
                       struct subprocess_s *const out_process) {
   return subprocess_create_ex(commandLine, options, SUBPROCESS_NULL,
                               out_process);
 }
 
-int subprocess_create_ex(const char *const commandLine[], int options,
+int subprocess_create_ex(const wchar_t *const commandLine[], int options,
                          const char *const environment[],
                          struct subprocess_s *const out_process) {
-#if defined(_WIN32)
   int fd;
   void *rd, *wr;
-  char *commandLineCombined;
+  wchar_t *commandLineCombined;
   subprocess_size_t len;
   int i, j;
   int need_quoting;
@@ -656,20 +667,20 @@ int subprocess_create_ex(const char *const commandLine[], int options,
     len++;
 
     // Quote the argument if it has a space in it
-    if (strpbrk(commandLine[i], "\t\v ") != SUBPROCESS_NULL)
+    if (wcspbrk(commandLine[i], L"\t\v ") != SUBPROCESS_NULL)
       len += 2;
 
-    for (j = 0; '\0' != commandLine[i][j]; j++) {
+    for (j = 0; L'\0' != commandLine[i][j]; j++) {
       switch (commandLine[i][j]) {
       default:
         break;
-      case '\\':
-        if (commandLine[i][j + 1] == '"') {
+      case L'\\':
+        if (commandLine[i][j + 1] == L'"') {
           len++;
         }
 
         break;
-      case '"':
+      case L'"':
         len++;
         break;
       }
@@ -677,7 +688,7 @@ int subprocess_create_ex(const char *const commandLine[], int options,
     }
   }
 
-  commandLineCombined = SUBPROCESS_CAST(char *, _alloca(len));
+  commandLineCombined = SUBPROCESS_CAST(wchar_t *, _alloca(len * 2));
 
   if (!commandLineCombined) {
     return -1;
@@ -688,48 +699,60 @@ int subprocess_create_ex(const char *const commandLine[], int options,
 
   for (i = 0; commandLine[i]; i++) {
     if (0 != i) {
-      commandLineCombined[len++] = ' ';
+      commandLineCombined[len++] = L' ';
     }
 
-    need_quoting = strpbrk(commandLine[i], "\t\v ") != SUBPROCESS_NULL;
+    need_quoting = wcspbrk(commandLine[i], L"\t\v ") != SUBPROCESS_NULL;
     if (need_quoting) {
-      commandLineCombined[len++] = '"';
+      commandLineCombined[len++] = L'"';
     }
 
-    for (j = 0; '\0' != commandLine[i][j]; j++) {
+    for (j = 0; L'\0' != commandLine[i][j]; j++) {
       switch (commandLine[i][j]) {
       default:
         break;
-      case '\\':
-        if (commandLine[i][j + 1] == '"') {
-          commandLineCombined[len++] = '\\';
+      case L'\\':
+        if (commandLine[i][j + 1] == L'"') {
+          commandLineCombined[len++] = L'\\';
         }
 
         break;
-      case '"':
-        commandLineCombined[len++] = '\\';
+      case L'"':
+        commandLineCombined[len++] = L'\\';
         break;
       }
 
       commandLineCombined[len++] = commandLine[i][j];
     }
     if (need_quoting) {
-      commandLineCombined[len++] = '"';
+      commandLineCombined[len++] = L'"';
     }
   }
 
-  commandLineCombined[len] = '\0';
+  commandLineCombined[len] = L'\0';
 
-  if (!CreateProcessA(
+  // Todo: This won't work properly cause used_environment has null terminators.
+  wchar_t *env_w;
+  if (used_environment = SUBPROCESS_NULL) {
+    int code_page = 65001;  // CP_UTF8
+    size_t size = MultiByteToWideChar(code_page, 0, used_environment, -1, nullptr, 0);
+    env_w = SUBPROCESS_CAST(wchar_t *, _alloca((size + 1) * sizeof(wchar_t)));
+    env_w[size] = 0;
+    MultiByteToWideChar(code_page, 0, used_environment, -1, env_w, size);
+  } else {
+    env_w = SUBPROCESS_NULL;
+  }
+
+  if (!CreateProcessW(
           SUBPROCESS_NULL,
           commandLineCombined, // command line
           SUBPROCESS_NULL,     // process security attributes
           SUBPROCESS_NULL,     // primary thread security attributes
           1,                   // handles are inherited
           flags,               // creation flags
-          used_environment,    // used environment
+          env_w,               // used environment
           SUBPROCESS_NULL,     // use parent's current directory
-          SUBPROCESS_PTR_CAST(LPSTARTUPINFOA,
+          SUBPROCESS_PTR_CAST(LPSTARTUPINFOW,
                               &startInfo), // STARTUPINFO pointer
           SUBPROCESS_PTR_CAST(LPPROCESS_INFORMATION, &processInfo))) {
     return -1;
@@ -753,7 +776,18 @@ int subprocess_create_ex(const char *const commandLine[], int options,
   out_process->alive = 1;
 
   return 0;
+}
+
 #else
+int subprocess_create(const char *const commandLine[], int options,
+                      struct subprocess_s *const out_process) {
+  return subprocess_create_ex(commandLine, options, SUBPROCESS_NULL,
+                              out_process);
+}
+
+int subprocess_create_ex(const char *const commandLine[], int options,
+                         const char *const environment[],
+                         struct subprocess_s *const out_process) {
   int stdinfd[2];
   int stdoutfd[2];
   int stderrfd[2];
@@ -903,8 +937,8 @@ int subprocess_create_ex(const char *const commandLine[], int options,
 
   posix_spawn_file_actions_destroy(&actions);
   return 0;
-#endif
 }
+#endif
 
 FILE *subprocess_stdin(const struct subprocess_s *const process) {
   return process->stdin_file;

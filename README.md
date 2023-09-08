@@ -7,6 +7,11 @@
 A simple one header solution to launching processes and interacting with them
 for C/C++.
 
+## About this branch
+
+I made this branch to use utf-16 command on Windows machines with subprocess.h.  
+It'll take `wchar**` as commands and use `CreateProcessW` instead of `CreateProcessA`.  
+
 ## Usage
 
 Just `#include "subprocess.h"` in your code!

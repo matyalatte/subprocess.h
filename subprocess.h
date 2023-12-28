@@ -359,6 +359,7 @@ __declspec(dllimport) unsigned long __stdcall WaitForMultipleObjects(
     unsigned long, void *const *, int, unsigned long);
 __declspec(dllimport) int __stdcall GetOverlappedResult(void *, LPOVERLAPPED,
                                                         unsigned long *, int);
+__declspec(dllimport) int __stdcall CancelIo(void *);
 __declspec(dllimport) int __stdcall MultiByteToWideChar(unsigned int,
                                                         unsigned long,
                                                         const char*, int,
@@ -1079,12 +1080,13 @@ unsigned subprocess_read_stdout(struct subprocess_s *const process,
     if (error == errorIoPending) {
       if (!GetOverlappedResult(handle,
                                SUBPROCESS_PTR_CAST(LPOVERLAPPED, &overlapped),
-                               &bytes_read, 1)) {
+                               &bytes_read, 0)) {
         const unsigned long errorIoIncomplete = 996;
         const unsigned long errorHandleEOF = 38;
         error = GetLastError();
 
-        if ((error != errorIoIncomplete) && (error != errorHandleEOF)) {
+        if (error != errorHandleEOF) {
+          CancelIo(handle);
           return 0;
         }
       }
@@ -1124,12 +1126,13 @@ unsigned subprocess_read_stderr(struct subprocess_s *const process,
     if (error == errorIoPending) {
       if (!GetOverlappedResult(handle,
                                SUBPROCESS_PTR_CAST(LPOVERLAPPED, &overlapped),
-                               &bytes_read, 1)) {
+                               &bytes_read, 0)) {
         const unsigned long errorIoIncomplete = 996;
         const unsigned long errorHandleEOF = 38;
         error = GetLastError();
 
-        if ((error != errorIoIncomplete) && (error != errorHandleEOF)) {
+        if (error != errorHandleEOF) {
+          CancelIo(handle);
           return 0;
         }
       }

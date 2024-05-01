@@ -668,7 +668,8 @@ int subprocess_create_ex(const wchar_t *const commandLine[], int options,
     len++;
 
     // Quote the argument if it has a space in it
-    if (wcspbrk(commandLine[i], L"\t\v ") != SUBPROCESS_NULL)
+    if (wcspbrk(commandLine[i], L"\t\v ") != SUBPROCESS_NULL ||
+        commandLine[i][0] == SUBPROCESS_NULL)
       len += 2;
 
     for (j = 0; L'\0' != commandLine[i][j]; j++) {
@@ -703,7 +704,8 @@ int subprocess_create_ex(const wchar_t *const commandLine[], int options,
       commandLineCombined[len++] = L' ';
     }
 
-    need_quoting = wcspbrk(commandLine[i], L"\t\v ") != SUBPROCESS_NULL;
+    need_quoting = wcspbrk(commandLine[i], L"\t\v ") != SUBPROCESS_NULL ||
+                   commandLine[i][0] == SUBPROCESS_NULL;
     if (need_quoting) {
       commandLineCombined[len++] = L'"';
     }

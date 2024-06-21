@@ -10,16 +10,13 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-11, macos-14]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         type: [Debug, RelWithDebInfo, MinSizeRel, Release]
         compiler: [default, clang, gcc, tcc]
         exclude:
-          - {os: "macos-11", compiler: "clang"}
-          - {os: "macos-11", compiler: "gcc"}
-          - {os: "macos-11", compiler: "tcc"}
-          - {os: "macos-14", compiler: "clang"}
-          - {os: "macos-14", compiler: "gcc"}
-          - {os: "macos-14", compiler: "tcc"}
+          - {os: "macos-latest", compiler: "clang"}
+          - {os: "macos-latest", compiler: "gcc"}
+          - {os: "macos-latest", compiler: "tcc"}
           - {os: "ubuntu-latest", compiler: "default"}
           - {os: "ubuntu-latest", compiler: "default"}
           - {os: "windows-latest", compiler: "gcc"}
@@ -27,7 +24,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{github.workspace}}/build

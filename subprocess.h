@@ -736,9 +736,9 @@ int subprocess_create_ex(const wchar_t *const commandLine[], int options,
 
   // Todo: This won't work properly cause used_environment has null terminators.
   wchar_t *env_w;
-  if (used_environment = SUBPROCESS_NULL) {
+  if (used_environment != SUBPROCESS_NULL) {
     int code_page = 65001;  // CP_UTF8
-    size_t size = MultiByteToWideChar(code_page, 0, used_environment, -1, nullptr, 0);
+    int size = MultiByteToWideChar(code_page, 0, used_environment, -1, nullptr, 0);
     env_w = SUBPROCESS_CAST(wchar_t *, _alloca((size + 1) * sizeof(wchar_t)));
     env_w[size] = 0;
     MultiByteToWideChar(code_page, 0, used_environment, -1, env_w, size);

@@ -368,10 +368,6 @@ __declspec(dllimport) unsigned long __stdcall WaitForMultipleObjects(
     unsigned long, void *const *, int, unsigned long);
 __declspec(dllimport) int __stdcall GetOverlappedResult(void *, LPOVERLAPPED,
                                                         unsigned long *, int);
-__declspec(dllimport) int __stdcall MultiByteToWideChar(unsigned int,
-                                                        unsigned long,
-                                                        const char*, int,
-                                                        wchar_t*, int);
 #if defined(_DLL)
 #define SUBPROCESS_DLLIMPORT __declspec(dllimport)
 #else
@@ -734,17 +730,8 @@ int subprocess_create_ex(const wchar_t *const commandLine[], int options,
 
   commandLineCombined[len] = L'\0';
 
-  // Todo: This won't work properly cause used_environment has null terminators.
-  wchar_t *env_w;
-  if (used_environment != SUBPROCESS_NULL) {
-    int code_page = 65001;  // CP_UTF8
-    int size = MultiByteToWideChar(code_page, 0, used_environment, -1, nullptr, 0);
-    env_w = SUBPROCESS_CAST(wchar_t *, _alloca((size + 1) * sizeof(wchar_t)));
-    env_w[size] = 0;
-    MultiByteToWideChar(code_page, 0, used_environment, -1, env_w, size);
-  } else {
-    env_w = SUBPROCESS_NULL;
-  }
+  // Todo: Support user defined environment variables
+  wchar_t *env_w = SUBPROCESS_NULL;
 
   if (!CreateProcessW(
           SUBPROCESS_NULL,
